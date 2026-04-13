@@ -10,9 +10,7 @@ const webhookRoutes = require("./routes/webhook");
 // ================= APP INIT =================
 const app = express();
 
-/**
- * IMPORTANT (Render / Proxy Fix)
- */
+// ================= TRUST PROXY (RENDER SAFE) =================
 app.set("trust proxy", 1);
 
 // ================= GLOBAL MIDDLEWARE =================
@@ -25,11 +23,11 @@ app.use(express.json({ limit: "10mb" }));
 
 // ================= REQUEST LOGGER =================
 app.use((req, res, next) => {
-  console.log(`📥 ${req.method} ${req.url} - ${new Date().toISOString()}`);
+  console.log(`📥 ${req.method} ${req.originalUrl} - ${new Date().toISOString()}`);
   next();
 });
 
-// ================= HEALTH CHECK =================
+// ================= HEALTH ROUTES =================
 app.get("/", (req, res) => {
   res.status(200).json({
     status: "OK",
@@ -39,36 +37,49 @@ app.get("/", (req, res) => {
   });
 });
 
-// ================= RENDER KEEP-ALIVE =================
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "alive"
   });
 });
 
-// ================= API ROUTES =================
+// ================= API ROUTES (VERY IMPORTANT ORDER) =================
+
+// 🔥 Wallet (main)
 app.use("/api/wallet", walletRoutes);
+
+// 🔥 Xallet (patched APK MUST hit this)
+app.use("/api/xallet", walletRoutes);
+
+// 🔥 Webhook (payments)
 app.use("/api/webhook", webhookRoutes);
 
-/**
- * IMPORTANT:
- * Optional compatibility layer for your patched APK
- * (ONLY if you used api.xallet in binary)
- */
-app.use("/api/xallet", walletRoutes);
+// ================= DEBUG ROUTE (OPTIONAL BUT POWERFUL) =================
+app.get("/debug/routes", (req, res) => {
+  res.json({
+    routes: [
+      "/api/wallet/*",
+      "/api/xallet/*",
+      "/api/webhook/*"
+    ]
+  });
+});
 
 // ================= 404 HANDLER =================
 app.use((req, res) => {
   res.status(404).json({
-    error: "Route not found"
+    success: false,
+    error: "Route not found",
+    path: req.originalUrl
   });
 });
 
 // ================= GLOBAL ERROR HANDLER =================
 app.use((err, req, res, next) => {
-  console.error("❌ ERROR:", err);
+  console.error("❌ SERVER ERROR:", err);
 
   res.status(500).json({
+    success: false,
     error: err.message || "Internal Server Error"
   });
 });
@@ -81,12 +92,13 @@ const server = app.listen(PORT, () => {
 });
 
 // ================= GRACEFUL SHUTDOWN =================
-process.on("SIGINT", () => {
-  console.log("🛑 SIGINT received...");
-  server.close(() => process.exit(0));
-});
+const shutdown = () => {
+  console.log("🛑 Shutting down server...");
+  server.close(() => {
+    console.log("✅ Server closed");
+    process.exit(0);
+  });
+};
 
-process.on("SIGTERM", () => {
-  console.log("🛑 SIGTERM received...");
-  server.close(() => process.exit(0));
-});
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
