@@ -10,15 +10,18 @@ const webhookRoutes = require("./routes/webhook");
 // ================= APP INIT =================
 const app = express();
 
+/**
+ * IMPORTANT (Render / Proxy Fix)
+ */
+app.set("trust proxy", 1);
+
 // ================= GLOBAL MIDDLEWARE =================
 app.use(cors({
-  origin: "*", // you can restrict later
-  methods: ["GET", "POST", "PUT", "DELETE"]
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
 }));
 
-app.use(express.json({
-  limit: "10mb" // prevent payload abuse
-}));
+app.use(express.json({ limit: "10mb" }));
 
 // ================= REQUEST LOGGER =================
 app.use((req, res, next) => {
@@ -36,15 +39,23 @@ app.get("/", (req, res) => {
   });
 });
 
-// ================= KEEP ALIVE (FOR RENDER) =================
-// Useful for cron ping or uptime monitor
+// ================= RENDER KEEP-ALIVE =================
 app.get("/health", (req, res) => {
-  res.status(200).json({ status: "alive" });
+  res.status(200).json({
+    status: "alive"
+  });
 });
 
 // ================= API ROUTES =================
 app.use("/api/wallet", walletRoutes);
 app.use("/api/webhook", webhookRoutes);
+
+/**
+ * IMPORTANT:
+ * Optional compatibility layer for your patched APK
+ * (ONLY if you used api.xallet in binary)
+ */
+app.use("/api/xallet", walletRoutes);
 
 // ================= 404 HANDLER =================
 app.use((req, res) => {
@@ -55,9 +66,9 @@ app.use((req, res) => {
 
 // ================= GLOBAL ERROR HANDLER =================
 app.use((err, req, res, next) => {
-  console.error("❌ ERROR:", err.stack);
+  console.error("❌ ERROR:", err);
 
-  res.status(err.status || 500).json({
+  res.status(500).json({
     error: err.message || "Internal Server Error"
   });
 });
@@ -71,17 +82,11 @@ const server = app.listen(PORT, () => {
 
 // ================= GRACEFUL SHUTDOWN =================
 process.on("SIGINT", () => {
-  console.log("🛑 Shutting down server...");
-  server.close(() => {
-    console.log("✅ Server closed");
-    process.exit(0);
-  });
+  console.log("🛑 SIGINT received...");
+  server.close(() => process.exit(0));
 });
 
 process.on("SIGTERM", () => {
   console.log("🛑 SIGTERM received...");
-  server.close(() => {
-    console.log("✅ Server terminated");
-    process.exit(0);
-  });
+  server.close(() => process.exit(0));
 });
