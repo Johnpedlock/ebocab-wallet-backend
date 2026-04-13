@@ -2,10 +2,14 @@ const express = require("express");
 const router = express.Router();
 const db = require("../config/db");
 
-// ================= HELPER =================
+// ================= HELPERS =================
 const toNumber = (value) => {
   const num = Number(value);
   return isNaN(num) ? null : num;
+};
+
+const generateReference = () => {
+  return "EBOCAB_" + Date.now();
 };
 
 // ================= CREATE WALLET =================
@@ -92,20 +96,29 @@ router.post("/topup", async (req, res) => {
 
     const validAmount = toNumber(amount);
 
-    if (!userId || !validAmount) {
+    if (!userId || !validAmount || validAmount <= 0) {
       return res.status(400).json({
         success: false,
-        error: "userId and valid amount are required",
+        error: "Valid userId and amount required",
       });
     }
 
+    // 🔐 Generate unique payment reference
+    const reference = generateReference();
+
     return res.json({
       success: true,
+      status: "pending",
       message: "Proceed to payment",
       data: {
         userId,
         amount: validAmount,
+        reference,
+
+        // 🔥 PAYMENT LINK (Selar)
         payment_link: "https://selar.com/showlove/ebo-cab",
+
+        // 🔥 UPDATED WHATSAPP (CONFIRM THIS NUMBER)
         whatsapp: "https://wa.me/2348106990302",
       },
     });
@@ -122,7 +135,7 @@ router.post("/topup", async (req, res) => {
 // ================= CREDIT WALLET (WEBHOOK / ADMIN ONLY) =================
 router.post("/credit", async (req, res) => {
   try {
-    const { userId, amount } = req.body;
+    const { userId, amount, reference } = req.body;
 
     const validAmount = toNumber(amount);
 
@@ -132,6 +145,9 @@ router.post("/credit", async (req, res) => {
         error: "Valid userId and positive amount required",
       });
     }
+
+    // OPTIONAL: prevent duplicate credits (future improvement)
+    // You can store references in a transactions table later
 
     const result = await db.query(
       `UPDATE wallet
@@ -152,6 +168,7 @@ router.post("/credit", async (req, res) => {
     return res.json({
       success: true,
       message: "Wallet credited successfully",
+      reference,
       data: result.rows[0],
     });
 
