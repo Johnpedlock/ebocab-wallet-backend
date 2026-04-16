@@ -1,7 +1,10 @@
-// ================= IMPORTS =================
+ // ================= IMPORTS =================
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
+
+// 🔥 DEPLOYMENT IDENTIFIER (CRITICAL)
+console.log("🔥 EBOCAB BACKEND V3 LIVE");
 
 // ================= ROUTES =================
 const walletRoutes = require("./routes/wallet");
@@ -32,6 +35,7 @@ app.get("/", (req, res) => {
   res.status(200).json({
     status: "OK",
     service: "EBOCAB Wallet Backend",
+    version: "v3", // 🔥 helps confirm deployment
     uptime: process.uptime(),
     timestamp: new Date().toISOString()
   });
@@ -39,29 +43,27 @@ app.get("/", (req, res) => {
 
 app.get("/health", (req, res) => {
   res.status(200).json({
-    status: "alive"
+    status: "alive",
+    version: "v3"
   });
 });
 
-// ================= API ROUTES (VERY IMPORTANT ORDER) =================
-
-// 🔥 Wallet (main)
+// ================= API ROUTES =================
 app.use("/api/wallet", walletRoutes);
-
-// 🔥 Xallet (patched APK MUST hit this)
 app.use("/api/xallet", walletRoutes);
-
-// 🔥 Webhook (payments)
 app.use("/api/webhook", webhookRoutes);
 
-// ================= DEBUG ROUTE (OPTIONAL BUT POWERFUL) =================
+// ================= DEBUG ROUTE =================
 app.get("/debug/routes", (req, res) => {
-  res.json({
+  res.status(200).json({
+    status: "debug ok",
+    version: "v3",
     routes: [
       "/api/wallet/*",
       "/api/xallet/*",
       "/api/webhook/*"
-    ]
+    ],
+    timestamp: new Date().toISOString()
   });
 });
 
